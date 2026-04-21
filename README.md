@@ -1,41 +1,32 @@
 # risyu2json
 
-CampusSquare の保存済みページ（HTML / MHTML / iOS の .webarchive）から、時間割データを `sample.json` 形式で抽出するスクリプトです。
+CampusSquare の保存済みページ（Android の HTML / MHTML、iOS の .webarchive）から、時間割データを `json` 形式で抽出するライブラリです。React での利用を想定しています。
 
-## 関数として利用
-
-```ts
-import { extractTimetableFromSavedData } from "./dist/extract";
-
-const savedData = "...履修登録ページの保存データ文字列...";
-const rows = extractTimetableFromSavedData(savedData);
-console.log(rows);
-```
-
-`extractTimetableFromSavedData` は、引数に保存済み履修データ文字列を受け取り、戻り値として JSON データ（`Row[]`）を返します。
-
-`.webarchive` を入力する場合は、CLI または `extractTimetableFromFile` を利用してください。
+## React で利用
 
 ```ts
-import { extractTimetableFromFile } from "./dist/extract";
+import { extractFromAndroid, extractFromiOS } from "risyu2json";
 
-const rowsFromWebarchive = extractTimetableFromFile("./input.webarchive");
-const rowsFromMhtml = extractTimetableFromFile("./input.mhtml");
+const androidSavedData = "...履修登録ページの保存データ文字列...";
+const rowsFromAndroid = extractFromAndroid(androidSavedData);
+
+// 例: input type="file" で受け取った iOS の .webarchive ファイル
+const iOSArrayBuffer = await file.arrayBuffer();
+const rowsFromiOS = extractFromiOS(iOSArrayBuffer);
+
+console.log(rowsFromAndroid, rowsFromiOS);
 ```
+
+- `extractFromAndroid(savedData: string)`
+	- Android 側で保存した HTML / MHTML の文字列を受け取り、`Row[]` を返します。
+- `extractFromiOS(webArchiveData: Buffer | Uint8Array | ArrayBuffer)`
+	- iOS の `.webarchive` バイナリデータを受け取り、`Row[]` を返します。
 
 ## セットアップ
 
 ```bash
 npm install
 ```
-
-## 実行
-
-```bash
-npm run extract -- "C:\\path\\to\\履修登録・参照 [CampusSquare]" sample.json
-```
-
-第2引数（出力先）を省略すると `sample.json` に出力します。
 
 ## npm インストール
 

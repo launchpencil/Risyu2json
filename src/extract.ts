@@ -1,5 +1,3 @@
-import { extname } from "node:path";
-import { readFileSync, writeFileSync } from "node:fs";
 import { JSDOM } from "jsdom";
 import { parseBuffer } from "bplist-parser";
 
@@ -12,6 +10,8 @@ export type Row = {
   name: string;
   cells: Cell[];
 };
+
+export type IOSWebArchiveData = Buffer | Uint8Array | ArrayBuffer;
 
 type WebArchiveMainResource = {
   WebResourceData?: Buffer | Uint8Array | string;
@@ -122,11 +122,6 @@ function parseRows(html: string): Row[] {
   return result;
 }
 
-export function extractTimetableFromSavedData(savedData: string): Row[] {
-  const html = extractHtml(savedData);
-  return parseRows(html);
-}
-
 function decodeResourceData(data: Buffer | Uint8Array | string): string {
   if (typeof data === "string") {
     return data;
@@ -178,8 +173,18 @@ function collectHtmlCandidates(node: WebArchiveRoot, output: HtmlCandidate[]): v
   );
 }
 
-function extractHtmlFromWebArchive(fileBuffer: Buffer): string {
-  const parsed = parseBuffer(fileBuffer) as WebArchiveRoot[];
+function toBuffer(data: IOSWebArchiveData): Buffer {
+  if (Buffer.isBuffer(data)) {
+    return data;
+  }
+  if (data instanceof ArrayBuffer) {
+    return Buffer.from(data);
+  }
+  return Buffer.from(data);
+}
+
+function extractHtmlFromWebArchive(webArchiveData: IOSWebArchiveData): string {
+  const parsed = parseBuffer(toBuffer(webArchiveData)) as WebArchiveRoot[];
   if (parsed.length === 0) {
     throw new Error("webarchive の内容を読み取れませんでした。");
   }
@@ -194,34 +199,12 @@ function extractHtmlFromWebArchive(fileBuffer: Buffer): string {
   return extractHtml(candidates[0].text);
 }
 
-export function extractTimetableFromFile(inputPath: string): Row[] {
-  const extension = extname(inputPath).toLowerCase();
-
-  if (extension === ".webarchive") {
-    const fileBuffer = readFileSync(inputPath);
-    const html = extractHtmlFromWebArchive(fileBuffer);
-    return parseRows(html);
-  }
-
-  const raw = readFileSync(inputPath, "utf8");
-  return extractTimetableFromSavedData(raw);
+export function extractFromAndroid(savedData: string): Row[] {
+  const html = extractHtml(savedData);
+  return parseRows(html);
 }
 
-function main(): void {
-  const inputPath = process.argv[2];
-  const outputPath = process.argv[3] ?? "sample.json";
-
-  if (!inputPath) {
-    console.error("使い方: npm run extract -- <入力ファイル> [出力JSON]");
-    process.exit(1);
-  }
-
-  const rows = extractTimetableFromFile(inputPath);
-
-  writeFileSync(outputPath, `${JSON.stringify(rows, null, 2)}\n`, "utf8");
-  console.log(`抽出完了: ${outputPath}`);
-}
-
-if (require.main === module) {
-  main();
+export function extractFromiOS(webArchiveData: IOSWebArchiveData): Row[] {
+  const html = extractHtmlFromWebArchive(webArchiveData);
+  return parseRows(html);
 }

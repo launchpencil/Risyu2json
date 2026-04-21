@@ -13,8 +13,7 @@
     "url": "https://github.com/launchpencil/Risyu2json.git"
   },
   "scripts": {
-    "build": "tsc",
-    "extract": "npm run build && node dist/extract.js"
+    "build": "tsc"
   },
   "dependencies": {
     "bplist-parser": "^0.3.2",
