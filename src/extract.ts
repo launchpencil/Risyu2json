@@ -1,0 +1,227 @@
+import { extname } from "node:path";
+import { readFileSync, writeFileSync } from "node:fs";
+import { JSDOM } from "jsdom";
+import { parseBuffer } from "bplist-parser";
+
+export type Cell =
+  | { type: "empty"; raw: "空き" }
+  | { type: "same"; raw: "上記と同じ" }
+  | { type: "class"; subject: string; teacher: string; room: string };
+
+export type Row = {
+  period: string;
+  cells: Cell[];
+};
+
+type WebArchiveMainResource = {
+  WebResourceData?: Buffer | Uint8Array | string;
+  WebResourceMIMEType?: string;
+};
+
+type WebArchiveRoot = {
+  WebMainResource?: WebArchiveMainResource;
+  WebSubresources?: WebArchiveMainResource[];
+  WebSubframeArchives?: WebArchiveRoot[];
+};
+
+type HtmlCandidate = {
+  text: string;
+  score: number;
+  length: number;
+};
+
+function toHalfWidthDigits(text: string): string {
+  return text
+    .replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0))
+    .replace(/\s+/g, "")
+    .trim();
+}
+
+function normalizeText(text: string): string {
+  return text
+    .replace(/\u00a0/g, " ")
+    .replace(/\r?\n/g, "\n")
+    .replace(/[ \t\f\v]+/g, " ")
+    .replace(/\n+/g, "\n")
+    .trim();
+}
+
+function extractHtml(raw: string): string {
+  const doctypeIndex = raw.indexOf("<!DOCTYPE");
+  const htmlIndex = raw.indexOf("<html");
+  const start = doctypeIndex >= 0 ? doctypeIndex : htmlIndex;
+
+  if (start < 0) {
+    throw new Error("HTML本体が見つかりませんでした。");
+  }
+
+  const end = raw.lastIndexOf("</html>");
+  if (end < 0 || end <= start) {
+    return raw.slice(start);
+  }
+  return raw.slice(start, end + "</html>".length);
+}
+
+function parseCell(cellElement: Element): Cell {
+  const lines = Array.from(cellElement.querySelectorAll("table.rishu-koma tr > td"))
+    .map((td) => normalizeText(td.textContent ?? ""))
+    .filter((line) => line.length > 0)
+    .filter((line) => line !== "(学生変更不可)")
+    .filter((line) => line !== "削除")
+    .filter((line) => line !== "登録");
+
+  if (lines[0] === "上記と同じ") {
+    return { type: "same", raw: "上記と同じ" };
+  }
+
+  if (lines.length === 0) {
+    return { type: "empty", raw: "空き" };
+  }
+
+  return {
+    type: "class",
+    subject: lines[0] ?? "",
+    teacher: lines[1] ?? "",
+    room: lines[2] ?? "",
+  };
+}
+
+function parseRows(html: string): Row[] {
+  const dom = new JSDOM(html);
+  const { document } = dom.window;
+
+  const rows = Array.from(document.querySelectorAll("tr"));
+  const result: Row[] = [];
+
+  for (const tr of rows) {
+    const periodParts = Array.from(
+      tr.querySelectorAll("th.rishu-koma-head-jigen"),
+    ).map((th) => toHalfWidthDigits(normalizeText(th.textContent ?? "")));
+
+    if (periodParts.length !== 2) {
+      continue;
+    }
+
+    const [a, b] = periodParts;
+    if (!/^\d+$/.test(a) || !/^\d+$/.test(b)) {
+      continue;
+    }
+
+    const period = `${a}・${b}`;
+    const tds = Array.from(tr.children).filter(
+      (child): child is HTMLTableCellElement => child.tagName === "TD",
+    );
+    if (tds.length < 5) {
+      continue;
+    }
+
+    const cells = tds.slice(0, 5).map((td) => parseCell(td));
+    result.push({ period, cells });
+  }
+
+  return result;
+}
+
+export function extractTimetableFromSavedData(savedData: string): Row[] {
+  const html = extractHtml(savedData);
+  return parseRows(html);
+}
+
+function decodeResourceData(data: Buffer | Uint8Array | string): string {
+  if (typeof data === "string") {
+    return data;
+  }
+  return Buffer.from(data).toString("utf8");
+}
+
+function scoreHtmlCandidate(text: string): number {
+  const markers = [
+    "rishu-koma-head-jigen",
+    "class=\"rishu-koma\"",
+    "campussquare.do",
+    "1・2",
+    "3・4",
+  ];
+  return markers.reduce((score, marker) => {
+    return score + (text.includes(marker) ? 1 : 0);
+  }, 0);
+}
+
+function collectHtmlCandidates(node: WebArchiveRoot, output: HtmlCandidate[]): void {
+  const visitResource = (resource?: WebArchiveMainResource): void => {
+    if (!resource?.WebResourceData) {
+      return;
+    }
+
+    const text = decodeResourceData(resource.WebResourceData);
+    const mimeType = (resource.WebResourceMIMEType ?? "").toLowerCase();
+    const looksLikeHtml =
+      mimeType.includes("text/html") ||
+      text.includes("<html") ||
+      text.includes("<!DOCTYPE");
+
+    if (!looksLikeHtml) {
+      return;
+    }
+
+    output.push({
+      text,
+      score: scoreHtmlCandidate(text),
+      length: text.length,
+    });
+  };
+
+  visitResource(node.WebMainResource);
+  (node.WebSubresources ?? []).forEach((resource) => visitResource(resource));
+  (node.WebSubframeArchives ?? []).forEach((frame) =>
+    collectHtmlCandidates(frame, output),
+  );
+}
+
+function extractHtmlFromWebArchive(fileBuffer: Buffer): string {
+  const parsed = parseBuffer(fileBuffer) as WebArchiveRoot[];
+  if (parsed.length === 0) {
+    throw new Error("webarchive の内容を読み取れませんでした。");
+  }
+
+  const candidates: HtmlCandidate[] = [];
+  collectHtmlCandidates(parsed[0], candidates);
+  if (candidates.length === 0) {
+    throw new Error("webarchive 内でHTML候補が見つかりませんでした。");
+  }
+
+  candidates.sort((a, b) => b.score - a.score || b.length - a.length);
+  return extractHtml(candidates[0].text);
+}
+
+export function extractTimetableFromFile(inputPath: string): Row[] {
+  const extension = extname(inputPath).toLowerCase();
+
+  if (extension === ".webarchive") {
+    const fileBuffer = readFileSync(inputPath);
+    const html = extractHtmlFromWebArchive(fileBuffer);
+    return parseRows(html);
+  }
+
+  const raw = readFileSync(inputPath, "utf8");
+  return extractTimetableFromSavedData(raw);
+}
+
+function main(): void {
+  const inputPath = process.argv[2];
+  const outputPath = process.argv[3] ?? "sample.json";
+
+  if (!inputPath) {
+    console.error("使い方: npm run extract -- <入力ファイル> [出力JSON]");
+    process.exit(1);
+  }
+
+  const rows = extractTimetableFromFile(inputPath);
+
+  writeFileSync(outputPath, `${JSON.stringify(rows, null, 2)}\n`, "utf8");
+  console.log(`抽出完了: ${outputPath}`);
+}
+
+if (require.main === module) {
+  main();
+}
