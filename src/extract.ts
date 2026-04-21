@@ -9,7 +9,7 @@ export type Cell =
   | { type: "class"; subject: string; teacher: string; room: string };
 
 export type Row = {
-  period: string;
+  name: string;
   cells: Cell[];
 };
 
@@ -107,7 +107,7 @@ function parseRows(html: string): Row[] {
       continue;
     }
 
-    const period = `${a}・${b}`;
+    const name = `${a}・${b}`;
     const tds = Array.from(tr.children).filter(
       (child): child is HTMLTableCellElement => child.tagName === "TD",
     );
@@ -116,7 +116,7 @@ function parseRows(html: string): Row[] {
     }
 
     const cells = tds.slice(0, 5).map((td) => parseCell(td));
-    result.push({ period, cells });
+    result.push({ name, cells });
   }
 
   return result;
