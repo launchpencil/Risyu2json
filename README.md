@@ -36,30 +36,3 @@ npm run extract -- "C:\\path\\to\\履修登録・参照 [CampusSquare]" sample.j
 ```
 
 第2引数（出力先）を省略すると `sample.json` に出力します。
-
-## npm インストール
-
-```bash
-npm install risyu2json
-```
-
-## リリース手順
-
-このパッケージは `v*` 形式のタグを push することで npm に自動公開されます。  
-**CI（ビルド）が通っていることを確認してからタグを作成してください。**
-
-```bash
-# バージョンを上げてタグを作成・push する
-npm version patch   # または minor / major
-git push origin main --tags
-```
-
-- タグ push をトリガーに GitHub Actions の `Publish to npm` ワークフローが起動します。
-- ビルド成果物（`dist/`）の存在確認後、`npm publish` が実行されます。
-- 公開には リポジトリ Secrets `NPM_TOKEN` の設定が必要です（Settings → Secrets → `NPM_TOKEN`）。
-- 同一バージョンの重複公開はエラーになります。その場合は `npm version` で版数を上げてから再タグしてください。
-
-### ロールバック
-
-npm は一度公開したバージョンの削除を原則禁止しています（公開後 72 時間以内のみ `npm unpublish` 可）。  
-問題が発生した場合はパッチバージョンを上げて修正版を公開するか、`npm deprecate` で非推奨マークを付けてください。
