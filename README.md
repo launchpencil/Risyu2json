@@ -36,3 +36,9 @@ npm run extract -- "C:\\path\\to\\履修登録・参照 [CampusSquare]" sample.j
 ```
 
 第2引数（出力先）を省略すると `sample.json` に出力します。
+
+## npm インストール
+
+```bash
+npm install risyu2json
+```
