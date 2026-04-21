@@ -1,9 +1,17 @@
 {
   "name": "risyu2json",
   "version": "1.0.0",
-  "private": true,
   "description": "Extract CampusSquare timetable data into JSON",
   "main": "dist/extract.js",
+  "types": "dist/extract.d.ts",
+  "files": [
+    "dist"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/launchpencil/Risyu2json.git"
+  },
   "scripts": {
     "build": "tsc",
     "extract": "npm run build && node dist/extract.js"
