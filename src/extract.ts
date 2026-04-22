@@ -1,5 +1,4 @@
-import { parseBuffer } from "bplist-parser";
-import { Buffer } from "buffer";
+import { parse } from "@plist/plist";
 
 export type Cell =
   | { type: "empty"; raw: "空き" }
@@ -37,8 +36,18 @@ function parseHtmlDocument(html: string): Document {
   return new DOMParser().parseFromString(html, "text/html");
 }
 
+function toArrayBuffer(data: Uint8Array): ArrayBuffer {
+  const copied = new Uint8Array(data.byteLength);
+  copied.set(data);
+  return copied.buffer;
+}
+
 function parseWebArchiveBuffer(data: Uint8Array): WebArchiveRoot[] {
-  return parseBuffer(Buffer.from(data)) as WebArchiveRoot[];
+  const parsed = parse(toArrayBuffer(data)) as unknown;
+  if (Array.isArray(parsed)) {
+    return parsed as WebArchiveRoot[];
+  }
+  return [parsed as WebArchiveRoot];
 }
 
 function toHalfWidthDigits(text: string): string {

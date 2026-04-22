@@ -1,6 +1,6 @@
 {
   "name": "risyu2json",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "description": "Extract CampusSquare timetable data into JSON",
   "main": "dist/extract.js",
   "types": "dist/extract.d.ts",
@@ -16,8 +16,7 @@
     "build": "tsc"
   },
   "dependencies": {
-    "bplist-parser": "^0.3.2",
-    "buffer": "^6.0.3"
+    "@plist/plist": "^1.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.19.17",
