@@ -1,5 +1,5 @@
-import { JSDOM } from "jsdom";
 import { parseBuffer } from "bplist-parser";
+import { Buffer } from "buffer";
 
 export type Cell =
   | { type: "empty"; raw: "空き" }
@@ -11,10 +11,10 @@ export type Row = {
   cells: Cell[];
 };
 
-export type IOSWebArchiveData = Buffer | Uint8Array | ArrayBuffer;
+export type IOSWebArchiveData = Uint8Array | ArrayBuffer;
 
 type WebArchiveMainResource = {
-  WebResourceData?: Buffer | Uint8Array | string;
+  WebResourceData?: Uint8Array | string;
   WebResourceMIMEType?: string;
 };
 
@@ -29,6 +29,17 @@ type HtmlCandidate = {
   score: number;
   length: number;
 };
+
+function parseHtmlDocument(html: string): Document {
+  if (typeof DOMParser === "undefined") {
+    throw new Error("DOMParser is not available in this runtime.");
+  }
+  return new DOMParser().parseFromString(html, "text/html");
+}
+
+function parseWebArchiveBuffer(data: Uint8Array): WebArchiveRoot[] {
+  return parseBuffer(Buffer.from(data)) as WebArchiveRoot[];
+}
 
 function toHalfWidthDigits(text: string): string {
   return text
@@ -87,8 +98,7 @@ function parseCell(cellElement: Element): Cell {
 }
 
 function parseRows(html: string): Row[] {
-  const dom = new JSDOM(html);
-  const { document } = dom.window;
+  const document = parseHtmlDocument(html);
 
   const rows = Array.from(document.querySelectorAll("tr"));
   const result: Row[] = [];
@@ -122,11 +132,11 @@ function parseRows(html: string): Row[] {
   return result;
 }
 
-function decodeResourceData(data: Buffer | Uint8Array | string): string {
+function decodeResourceData(data: Uint8Array | string): string {
   if (typeof data === "string") {
     return data;
   }
-  return Buffer.from(data).toString("utf8");
+  return new TextDecoder("utf-8").decode(data);
 }
 
 function scoreHtmlCandidate(text: string): number {
@@ -173,18 +183,15 @@ function collectHtmlCandidates(node: WebArchiveRoot, output: HtmlCandidate[]): v
   );
 }
 
-function toBuffer(data: IOSWebArchiveData): Buffer {
-  if (Buffer.isBuffer(data)) {
-    return data;
-  }
+function toBuffer(data: IOSWebArchiveData): Uint8Array {
   if (data instanceof ArrayBuffer) {
-    return Buffer.from(data);
+    return new Uint8Array(data);
   }
-  return Buffer.from(data);
+  return data;
 }
 
 function extractHtmlFromWebArchive(webArchiveData: IOSWebArchiveData): string {
-  const parsed = parseBuffer(toBuffer(webArchiveData)) as WebArchiveRoot[];
+  const parsed = parseWebArchiveBuffer(toBuffer(webArchiveData));
   if (parsed.length === 0) {
     throw new Error("webarchive の内容を読み取れませんでした。");
   }

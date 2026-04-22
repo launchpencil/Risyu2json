@@ -1,6 +1,6 @@
 # risyu2json
 
-CampusSquare の保存済みページ（Android の HTML / MHTML、iOS の .webarchive）から、時間割データを `json` 形式で抽出するライブラリです。React での利用を想定しています。
+CampusSquare の保存済みページ（Android の HTML / MHTML、iOS の .webarchive）から、時間割データを `json` 形式で抽出するライブラリです。ブラウザ（React）での利用を想定しています。
 
 ## React で利用
 
@@ -19,7 +19,7 @@ console.log(rowsFromAndroid, rowsFromiOS);
 
 - `extractFromAndroid(savedData: string)`
 	- Android 側で保存した HTML / MHTML の文字列を受け取り、`Row[]` を返します。
-- `extractFromiOS(webArchiveData: Buffer | Uint8Array | ArrayBuffer)`
+- `extractFromiOS(webArchiveData: Uint8Array | ArrayBuffer)`
 	- iOS の `.webarchive` バイナリデータを受け取り、`Row[]` を返します。
 
 ## セットアップ
