@@ -25,6 +25,32 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Read package metadata
+        run: |
+          echo "PKG_NAME=$(node -p \"require('./package.json').name\")" >> "$GITHUB_ENV"
+          echo "PKG_VERSION=$(node -p \"require('./package.json').version\")" >> "$GITHUB_ENV"
+
+      - name: Verify npm token exists
+        run: test -n "$NODE_AUTH_TOKEN" || (echo "NPM_TOKEN is not set" && exit 1)
+
+      - name: Verify tag matches package version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "Tag version ($TAG_VERSION) does not match package.json version ($PKG_VERSION)"
+            exit 1
+          fi
+
+      - name: Verify npm authentication
+        run: npm whoami
+
+      - name: Verify version is not already published
+        run: |
+          if npm view "$PKG_NAME@$PKG_VERSION" version > /dev/null 2>&1; then
+            echo "$PKG_NAME@$PKG_VERSION is already published"
+            exit 1
+          fi
+
       - name: Build
         run: npm run build
 
